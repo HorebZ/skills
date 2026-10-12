@@ -317,7 +317,7 @@ Change lasting preferences in plain language:
 /bigbrain from now on, save plans as GitHub issues here
 ```
 
-Settings live in `~/.agents/config/bigbrain.md`, with global defaults and optional overrides per repository. Project knowledge stays outside your checkout by default. Setup can move it to `.agents/bigbrain/memory.md` in the repo, which every bigbrain run reads.
+Settings live in `~/.agents/config/bigbrain.md`, with global defaults and optional overrides per repository. Project knowledge stays outside your checkout by default. Setup can move it to a `## Learned` section of the repo's `AGENTS.md`, which colleagues and other harnesses load too.
 
 For the exact settings and defaults, see [configuration](bigbrain/references/config.md).
 

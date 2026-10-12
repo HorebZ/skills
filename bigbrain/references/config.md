@@ -17,7 +17,7 @@ When the user states a lasting preference ("from now on", "always", "never"), wr
 | Key | Values | Default |
 |---|---|---|
 | `plan.destination` | `none`, `repo:<path>`, `home` (`~/.agents/plans/<repo slug>/`), `github-issue` | `none` |
-| `memory.destination` | `home` (home store), `repo` (repo store, committed and shared); see `references/memory.md#read` | `home` |
+| `memory.destination` | `home` (home store), `repo` (a `## Learned` section in the repo's `AGENTS.md`, committed and shared); see `references/memory.md#read` | `home` |
 | `pr.max-lines` | `none` or changed lines per PR, tests included | `none` |
 | `watch.after-ship` | `true`, `false` | `false` |
 | `setup.<harness>` | `done <YYYY-MM-DD>`, `later`, `never` | unset (ask) |

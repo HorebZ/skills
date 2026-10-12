@@ -10,7 +10,7 @@ Every diff for review, size, and comments is `git diff <baseCommit>...<headCommi
 
 Check the tree first, and create the branch just before the first write.
 
-- **Unrelated uncommitted changes**: touch nothing; stop and tell the user. Changes to the repo store (`references/memory.md#read`) alone do not stop you, but never stage them with the work, and remind the user to commit them.
+- **Unrelated uncommitted changes**: touch nothing; stop and tell the user. Changes to the repo store (`references/memory.md#read`), the `## Learned` section of the agent docs, alone do not stop you, but never stage them with the work, and remind the user to commit them.
 - **On the default branch**: create a branch from `baseCommit`, named per the repo's pattern.
 - **On another branch**: continue on it if the task belongs there; otherwise branch from `baseCommit`. A stacked change targets its parent branch, and only its own changes count.
 
