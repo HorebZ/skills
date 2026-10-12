@@ -251,7 +251,7 @@ flowchart TD
 
 ### Setup
 
-The [setup use case](bigbrain/usecases/setup.md) configures supported model/effort choices and offers an optional PR size limit. Confirmed choices are stored in the skill configuration and the harness-native configuration when supported.
+The [setup use case](bigbrain/usecases/setup.md) configures supported model/effort choices, offers an optional PR size limit, and asks where learned project knowledge goes: on this machine by default, or in a repo file you commit to share it with colleagues and other harnesses. Confirmed choices are stored in the skill configuration and the harness-native configuration when supported.
 
 ```mermaid
 flowchart LR
@@ -317,7 +317,7 @@ Change lasting preferences in plain language:
 /bigbrain from now on, save plans as GitHub issues here
 ```
 
-Settings live in `~/.agents/config/bigbrain.md`, with global defaults and optional overrides per repository. Project knowledge is stored separately, outside your checkout.
+Settings live in `~/.agents/config/bigbrain.md`, with global defaults and optional overrides per repository. Project knowledge stays outside your checkout by default. Setup can move it to `.agents/bigbrain/memory.md` in the repo, which every bigbrain run reads.
 
 For the exact settings and defaults, see [configuration](bigbrain/references/config.md).
 
