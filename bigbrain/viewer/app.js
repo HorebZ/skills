@@ -304,11 +304,14 @@
     return out.join('');
   }
 
+  // Code spans and badges are set aside as placeholders, so emphasis and links can wrap them.
   function inline(text) {
-    return String(text ?? '').split(/(`[^`\n]+`)/).map((part, k) => {
-      if (k % 2) return `<code>${esc(part.slice(1, -1))}</code>`;
-      return part.split(/(\[\[[^\]]+\]\])/).map((seg, j) => (j % 2 ? badge(seg) : prose(seg))).join('');
-    }).join('');
+    const held = [];
+    const hold = html => `\uE000${held.push(html) - 1}\uE001`;
+    const s = String(text ?? '').replace(/[\uE000\uE001]/g, '')
+      .replace(/`[^`\n]+`/g, c => hold(`<code>${esc(c.slice(1, -1))}</code>`))
+      .replace(/\[\[[^\]]+\]\]/g, b => hold(badge(b)));
+    return prose(s).replace(/\uE000(\d+)\uE001/g, (_, k) => held[k]);
   }
 
   function prose(s) {
