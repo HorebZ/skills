@@ -1,5 +1,7 @@
 # bigbrain
 
+<img width="568" height="500" alt="image" src="https://github.com/user-attachments/assets/9c018297-e19b-4601-b6d8-26966d2c39c1" />
+
 **Give your coding agent a task. It coordinates the work and checks the result.**
 
 bigbrain is a personal engineering skill for building features, fixing bugs, refactoring code, handling chores, planning changes, and reviewing code, including guided pull request reviews in your browser. The main agent acts as the lead: it makes decisions and delegates exploration, implementation, verification, and review to subagents.
