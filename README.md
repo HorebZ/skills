@@ -1,6 +1,8 @@
 # bigbrain
 
-<img width="568" height="500" alt="image" src="https://github.com/user-attachments/assets/9c018297-e19b-4601-b6d8-26966d2c39c1" />
+<p align="center">
+  <img width="320" alt="bigbrain" src="https://github.com/user-attachments/assets/9c018297-e19b-4601-b6d8-26966d2c39c1" />
+</p>
 
 **Give your coding agent a task. It coordinates the work and checks the result.**
 
