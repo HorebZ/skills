@@ -32,10 +32,13 @@
       status: { A: 'Added', M: 'Modified', D: 'Deleted', R: 'Renamed', C: 'Copied', T: 'Type changed' },
       review: 'Review', finish: 'Finish your review', pending: 'Pending', edit: 'Edit', remove: 'Delete',
       addComment: 'Comment', save: 'Save', cancel: 'Cancel', close: 'Close',
-      commentOn: (line, old) => `Comment on line ${line}${old ? ' (old version)' : ''}`,
+      commentOn: (start, line, old) => `${start ? `Comment on lines ${start} to ${line}` : `Comment on line ${line}`}${old ? ' (old version)' : ''}`,
+      linesShort: (start, line) => `lines ${start}–${line}`,
+      suggest: 'Suggestion', suggestHint: 'Suggest a replacement for these lines, which the author can commit from GitHub',
+      suggested: 'Suggested change',
       commentPlaceholder: 'Leave a comment (Markdown)', outsideDiff: 'GitHub only accepts comments on lines of the diff.',
       oldSide: 'old', lineComments: 'Pending comments',
-      noComments: 'Hover a line number in a diff and click + to comment on that line.',
+      noComments: 'Hover a line of a diff and click + to comment on it. Drag over the numbers, or shift-click, for several lines.',
       reviewBody: 'Overall comment (Markdown)',
       events: { COMMENT: 'Comment', APPROVE: 'Approve', REQUEST_CHANGES: 'Request changes' },
       eventHints: {
@@ -79,10 +82,13 @@
       status: { A: 'Ajouté', M: 'Modifié', D: 'Supprimé', R: 'Renommé', C: 'Copié', T: 'Type modifié' },
       review: 'Review', finish: 'Terminer la review', pending: 'En attente', edit: 'Modifier', remove: 'Supprimer',
       addComment: 'Commenter', save: 'Enregistrer', cancel: 'Annuler', close: 'Fermer',
-      commentOn: (line, old) => `Commenter la ligne ${line}${old ? ' (ancienne version)' : ''}`,
+      commentOn: (start, line, old) => `${start ? `Commenter les lignes ${start} à ${line}` : `Commenter la ligne ${line}`}${old ? ' (ancienne version)' : ''}`,
+      linesShort: (start, line) => `lignes ${start}–${line}`,
+      suggest: 'Suggestion', suggestHint: "Proposer un remplacement de ces lignes, que l'auteur pourra committer depuis GitHub",
+      suggested: 'Modification suggérée',
       commentPlaceholder: 'Écrire un commentaire (Markdown)', outsideDiff: 'GitHub n’accepte les commentaires que sur les lignes du diff.',
       oldSide: 'ancienne', lineComments: 'Commentaires en attente',
-      noComments: 'Survolez un numéro de ligne dans un diff et cliquez sur + pour commenter cette ligne.',
+      noComments: 'Survolez une ligne d’un diff et cliquez sur + pour la commenter. Glissez sur les numéros, ou faites Maj+clic, pour plusieurs lignes.',
       reviewBody: 'Commentaire général (Markdown)',
       events: { COMMENT: 'Commenter', APPROVE: 'Approuver', REQUEST_CHANGES: 'Demander des changements' },
       eventHints: {
@@ -132,6 +138,8 @@
     unfold: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
     pencil: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
     trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    diff: '<path d="M12 3v14"/><path d="M5 10h14"/><path d="M5 21h14"/>',
     send: '<path d="M14.54 21.69a.5.5 0 0 0 .94-.03l6.5-19a.5.5 0 0 0-.64-.64l-19 6.5a.5.5 0 0 0-.03.94l7.93 3.18a2 2 0 0 1 1.11 1.11z"/><path d="m21.85 2.15-10.94 10.94"/>',
     sqPlus: '<rect width="18" height="18" x="3" y="3" rx="3"/><path d="M8 12h8"/><path d="M12 8v8"/>',
     sqMinus: '<rect width="18" height="18" x="3" y="3" rx="3"/><path d="M8 12h8"/>',
@@ -189,7 +197,7 @@
   const SERVED = location.protocol === 'http:' || location.protocol === 'https:';
   const remote = { enabled: false, status: null };
   const DRAFTS_KEY = `guided-review:drafts:${D.head.sha}`;
-  const drafts = store.get(DRAFTS_KEY, []); // {id, path, line, side: 'LEFT' | 'RIGHT', body}
+  const drafts = store.get(DRAFTS_KEY, []); // {id, path, side: 'LEFT' | 'RIGHT', line, start?, body}, start < line for a range
   const reviewBody = { text: store.get(`${DRAFTS_KEY}:body`, '') };
   const saveDrafts = () => {
     store.set(DRAFTS_KEY, drafts);
@@ -260,7 +268,14 @@
   // ------------------------------------------------------------- markdown (small subset) and badges
 
   const LIST = /^\s*([-*+]|\d+[.)])\s+/;
-  function md(src) {
+  // A GitHub suggestion block: the lines it replaces, when known, then what they would become.
+  function suggestionHtml(next, replaced) {
+    const rows = (text, cls) => text.split('\n').map(l => `<div class="${cls}">${esc(l) || ' '}</div>`).join('');
+    return `<div class="suggestion"><div class="sugg-head">${esc(S.suggested)}</div><pre>${replaced != null ? rows(replaced, 'del') : ''}${rows(next, 'add')}</pre></div>`;
+  }
+
+  // opts.replaced: the text of the lines a comment covers, shown above a suggestion.
+  function md(src, opts = {}) {
     if (!src) return '';
     const lines = String(src).replace(/\r\n?/g, '\n').split('\n');
     const out = [];
@@ -273,7 +288,8 @@
         i++;
         while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
         i++;
-        out.push(`<pre><code>${CM.highlightToHtml(buf.join('\n'), CM.languageFor(m[1]))}</code></pre>`);
+        if (m[1] === 'suggestion') out.push(suggestionHtml(buf.join('\n'), opts.replaced));
+        else out.push(`<pre><code>${CM.highlightToHtml(buf.join('\n'), CM.languageFor(m[1]))}</code></pre>`);
       } else if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
         const level = Math.min(6, m[1].length + 2);
         out.push(`<h${level}>${inline(m[2])}</h${level}>`);
@@ -844,28 +860,6 @@
     });
   }
 
-  // Line numbers that accept a comment get a class, so only they show the + on hover.
-  class CanComment extends CM.GutterMarker {
-    constructor() {
-      super();
-      this.elementClass = 'cm-gr-can';
-    }
-  }
-  const canComment = new CanComment();
-  function commentableGutter(lines, start) {
-    return CM.gutterLineClass.compute([], st => {
-      const builder = new CM.RangeSetBuilder();
-      for (let n = 1; n <= st.doc.lines; n++) {
-        if (lines.has(n + start - 1)) {
-          const from = st.doc.line(n).from;
-          builder.add(from, from, canComment);
-        }
-      }
-      return builder.finish();
-    });
-  }
-
-  // side: the diff side these lines belong to ('LEFT' old, 'RIGHT' new), which makes them commentable.
   // An excerpt of a single-file component that starts inside <script> or <style> lacks the opening tag, so the
   // component's language would read it as markup: it gets the language of the block it starts in instead.
   const SFC = /\.(vue|svelte|html?)$/i;
@@ -884,13 +878,16 @@
     return CM.languageFor(block || path);
   }
 
-  function extensions(path, { start = 1, marks = [], side = null, highlights = [] } = {}) {
-    const commenting = remote.enabled && side && byPath.has(path);
+  // side: the diff side these lines belong to ('LEFT' old, 'RIGHT' new), which makes them commentable.
+  // original: in the unified view, the old text and its first file line, so deleted lines take comments too.
+  function extensions(path, { start = 1, marks = [], side = null, highlights = [], original = null } = {}) {
+    const ctx = remote.enabled && side && byPath.has(path) ? { path, side, start, original } : null;
     const gutter = { formatNumber: n => String(n + start - 1) };
-    if (commenting) {
+    if (ctx) {
       gutter.domEventHandlers = {
-        mousedown(view, block) {
-          openComposer({ path, side, line: view.state.doc.lineAt(block.from).number + start - 1 });
+        mousedown(view, block, event) {
+          const at = lineUnder(view, ctx, event);
+          if (at && inDiff(path, at.side, at.line)) startComment(view, ctx, at, event);
           return true;
         },
       };
@@ -908,21 +905,162 @@
     if (prefs.wrap) ext.push(CM.EditorView.lineWrapping);
     if (marks.length) ext.push(lineMarks(marks));
     if (highlights.length) ext.push(highlightField(highlights, start));
-    if (commenting) {
-      ext.push(
-        CM.EditorView.editorAttributes.of({ class: 'cm-gr-commentable' }),
-        commentableGutter(commentable.get(path)[side], start),
-        commentField(path, side, start),
-      );
+    if (ctx) {
+      ext.push(CM.EditorView.editorAttributes.of({ class: 'cm-gr-commentable' }), commentField(ctx), commentHover(ctx));
     }
     return ext;
   }
 
   // ------------------------------------------------------------- line comments (drafts and composer)
 
-  let composing = null; // the line being commented: {path, side, line, id?, body?}
+  // As on GitHub, a + follows the pointer over the lines of the diff. A click comments on that line; a drag, or a
+  // shift-click on another line of the same hunk, comments on the range. Comments stay drafts until the review is sent.
+  let composing = null; // the lines being commented: {path, side, line, start?, id?, body?}, start < line for a range
+  let dragging = null; // a range being picked: {path, side, anchor, head}
   const refreshComments = CM.StateEffect.define();
   const who = () => remote.status?.viewer || '';
+  const hunkOf = (path, side, line) => commentable.get(path)?.[side].get(line);
+  const inDiff = (path, side, line) => hunkOf(path, side, line) !== undefined;
+  const sameHunk = (path, side, a, b) => inDiff(path, side, a) && hunkOf(path, side, a) === hunkOf(path, side, b);
+  const firstLine = t => t.start ?? t.line;
+  const linesLabel = t => (t.start ? `${t.start}–${t.line}` : String(t.line));
+  // The file lines the drag or the composer covers in this file and side, as [first, last].
+  function picked(path, side) {
+    if (dragging && dragging.path === path && dragging.side === side) {
+      return [Math.min(dragging.anchor, dragging.head), Math.max(dragging.anchor, dragging.head)];
+    }
+    return composing && composing.path === path && composing.side === side ? [firstLine(composing), composing.line] : null;
+  }
+
+  // The unified view draws deleted lines as widgets without numbers, one widget per diff chunk: a deleted line's
+  // number comes from the start of its chunk in the old text.
+  function chunkOfWidget(view, node) {
+    const info = CM.getChunks(view.state);
+    let pos;
+    try { pos = view.posAtDOM(node); } catch (e) { return null; }
+    return info?.chunks.find(c => c.fromB === pos) ?? null;
+  }
+  function oldLineAt(ctx, offset) {
+    return ctx.original.start + ctx.original.text.slice(0, offset).split('\n').length - 1;
+  }
+  function deletedLineNumber(view, ctx, node) {
+    const box = node.closest('.cm-deletedChunk');
+    const chunk = box && chunkOfWidget(view, box);
+    if (!chunk) return null;
+    return oldLineAt(ctx, chunk.fromA) + [...box.querySelectorAll(':scope > .cm-deletedLine')].indexOf(node);
+  }
+  // Where an old line's comments go in the unified view: after the deleted chunk that shows it.
+  function unifiedPosOfOld(state, ctx, line) {
+    for (const c of CM.getChunks(state)?.chunks ?? []) {
+      if (c.toA > c.fromA && line >= oldLineAt(ctx, c.fromA) && line <= oldLineAt(ctx, c.toA - 1)) return c.fromB;
+    }
+    return null;
+  }
+
+  // The diff line under the pointer, as {side, line, node?} in file lines, or null over a comment or outside the text.
+  // clamp: keep to the editor's height, for a drag that leaves it.
+  function lineUnder(view, ctx, event, clamp = false) {
+    let y = event.clientY - view.documentTop;
+    if (clamp) y = Math.max(0, Math.min(view.contentHeight - 1, y));
+    if (y < 0 || y >= view.contentHeight) return null;
+    let block = view.lineBlockAtHeight(y);
+    if (Array.isArray(block.type)) block = block.type.find(b => y >= b.top && y < b.bottom);
+    if (block?.type === 0) return { side: ctx.side, line: view.state.doc.lineAt(block.from).number + ctx.start - 1 };
+    // A widget: a comment, or in the unified view a deleted chunk, whose line at this height is found in the DOM,
+    // just right of the line numbers (the code may be scrolled under them).
+    if (!ctx.original) return null;
+    const x = (view.dom.querySelector('.cm-gutters') ?? view.contentDOM).getBoundingClientRect().right + 8;
+    const node = document.elementFromPoint(x, view.documentTop + y)?.closest('.cm-deletedLine');
+    const line = node && view.contentDOM.contains(node) ? deletedLineNumber(view, ctx, node) : null;
+    return line == null ? null : { side: 'LEFT', line, node };
+  }
+
+  function startComment(view, ctx, at, event) {
+    event.preventDefault();
+    const { path } = ctx;
+    const c = composing;
+    if (event.shiftKey && c && c.path === path && c.side === at.side && sameHunk(path, at.side, c.line, at.line)) {
+      const lines = [firstLine(c), c.line, at.line];
+      return openComposer({ ...c, start: Math.min(...lines), line: Math.max(...lines) }, true);
+    }
+    dragging = { path, side: at.side, anchor: at.line, head: at.line };
+    refreshAllComments();
+    const move = e => {
+      const t = lineUnder(view, ctx, e, true);
+      if (!t || t.side !== dragging.side || !sameHunk(path, t.side, dragging.anchor, t.line) || t.line === dragging.head) return;
+      dragging.head = t.line;
+      refreshAllComments();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      const d = dragging;
+      dragging = null;
+      if (!openComposer({ path, side: d.side, start: Math.min(d.anchor, d.head), line: Math.max(d.anchor, d.head) })) refreshAllComments();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  }
+
+  // The + button, over the line number of the hovered diff line.
+  function commentHover(ctx) {
+    return CM.ViewPlugin.fromClass(class {
+      constructor(view) {
+        this.view = view;
+        this.at = null;
+        this.btn = el('button', 'cm-gr-add', icon('plus'));
+        this.btn.hidden = true;
+        this.btn.addEventListener('mousedown', e => { if (this.at && e.button === 0) startComment(view, ctx, this.at, e); });
+        view.dom.append(this.btn);
+        this.onMove = e => this.hover(e);
+        this.onLeave = e => { if (!this.btn.contains(e.relatedTarget)) this.hide(); };
+        view.dom.addEventListener('mousemove', this.onMove);
+        view.dom.addEventListener('mouseleave', this.onLeave);
+        this.mark();
+      }
+      hover(e) {
+        if (dragging || this.btn.contains(e.target)) return;
+        const at = lineUnder(this.view, ctx, e);
+        if (!at || !inDiff(ctx.path, at.side, at.line)) return this.hide();
+        const row = at.node ? at.node.getBoundingClientRect() : this.view.coordsAtPos(this.view.state.doc.line(at.line - ctx.start + 1).from);
+        const numbers = this.view.dom.querySelector('.cm-lineNumbers');
+        if (!row || !numbers) return this.hide();
+        const box = this.view.dom.getBoundingClientRect();
+        this.at = at;
+        this.btn.hidden = false;
+        this.btn.title = S.commentOn(null, at.line, at.side === 'LEFT');
+        this.btn.style.top = `${row.top - box.top + (row.bottom - row.top) / 2}px`;
+        this.btn.style.left = `${numbers.getBoundingClientRect().right - box.left}px`;
+      }
+      hide() {
+        this.at = null;
+        this.btn.hidden = true;
+      }
+      // Deleted lines are DOM drawn by the merge view: their selection is marked in the DOM.
+      mark() {
+        if (!ctx.original) return;
+        this.view.requestMeasure({
+          key: this,
+          read: () => null,
+          write: () => {
+            const range = picked(ctx.path, 'LEFT');
+            this.view.contentDOM.querySelectorAll('.cm-deletedLine').forEach(node => {
+              const n = range && deletedLineNumber(this.view, ctx, node);
+              node.classList.toggle('cm-gr-sel', n != null && n >= range[0] && n <= range[1]);
+            });
+          },
+        });
+      }
+      update(u) {
+        if (u.viewportChanged || u.transactions.some(tr => tr.effects.some(e => e.is(refreshComments)))) this.mark();
+      }
+      destroy() {
+        this.btn.remove();
+        this.view.dom.removeEventListener('mousemove', this.onMove);
+        this.view.dom.removeEventListener('mouseleave', this.onLeave);
+      }
+    });
+  }
 
   // Comment widgets stick to the left edge of the visible code, just after the line numbers.
   function stickAfterGutter(view, node) {
@@ -944,12 +1082,19 @@
       const name = who();
       return stickAfterGutter(view, el('div', 'cm-gr-comment', `<div class="cmt-head">
           ${name ? `<span class="avatar">${esc(name.slice(0, 1).toUpperCase())}</span><b>${esc(name)}</b>` : ''}
-          <span class="pill">${esc(S.pending)}</span><span class="spacer"></span>
+          <span class="pill">${esc(S.pending)}</span>${d.start ? `<span class="cmt-lines">${esc(S.linesShort(d.start, d.line))}</span>` : ''}<span class="spacer"></span>
           <button class="ib xs" data-act="edit-draft" data-id="${esc(d.id)}" title="${esc(S.edit)}" aria-label="${esc(S.edit)}">${icon('pencil')}</button>
           <button class="ib xs" data-act="delete-draft" data-id="${esc(d.id)}" title="${esc(S.remove)}" aria-label="${esc(S.remove)}">${icon('trash')}</button></div>
-        <div class="md">${md(d.body)}</div>`));
+        <div class="md">${md(d.body, { replaced: commentedText(d) })}</div>`));
     }
     ignoreEvent() { return true; }
+  }
+
+  // The head text of the lines a comment covers, which a suggestion replaces; null on the old side.
+  function commentedText(t) {
+    if (t.side !== 'RIGHT') return null;
+    const text = headText(t.path);
+    return text == null ? null : text.split('\n').slice(firstLine(t) - 1, t.line).join('\n');
   }
 
   class ComposerWidget extends CM.WidgetType {
@@ -960,21 +1105,38 @@
     eq(other) { return other.target === this.target; }
     toDOM(view) {
       const t = this.target;
-      const box = el('div', 'cm-gr-composer', `<div class="cmt-head">${icon('message')}<span>${esc(S.commentOn(t.line, t.side === 'LEFT'))}</span></div>
+      const code = commentedText(t);
+      const box = el('div', 'cm-gr-composer', `<div class="cmt-head">${icon('message')}<span>${esc(S.commentOn(t.start, t.line, t.side === 'LEFT'))}</span></div>
         <textarea rows="3" placeholder="${esc(S.commentPlaceholder)}"></textarea>
-        <div class="cmt-acts"><span class="hint">${kbd(['⌘', '↵'])}</span><span class="spacer"></span>
+        <div class="cmt-acts">${code != null ? `<button class="btn sm ghost" data-c="suggest" title="${esc(S.suggestHint)}">${icon('diff')}${esc(S.suggest)}</button>` : ''}
+          <span class="hint">${kbd(['⌘', '↵'])}</span><span class="spacer"></span>
           <button class="btn sm" data-c="cancel">${esc(S.cancel)}</button>
           <button class="btn sm primary" data-c="save">${esc(t.id ? S.save : S.addComment)}</button></div>`);
       const area = box.querySelector('textarea');
       area.value = t.body || '';
-      area.addEventListener('input', () => { t.body = area.value; });
+      const fit = () => {
+        area.rows = Math.min(16, Math.max(3, area.value.split('\n').length + 1));
+        view.requestMeasure();
+      };
+      fit();
+      area.addEventListener('input', () => { t.body = area.value; fit(); });
       area.addEventListener('mouseup', () => view.requestMeasure());
       area.addEventListener('keydown', e => {
         if (e.key === 'Escape') { e.stopPropagation(); closeComposer(); } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveComposer(); }
       });
       box.addEventListener('click', e => {
         const c = e.target.closest('[data-c]')?.dataset.c;
-        if (c === 'save') saveComposer(); else if (c === 'cancel') closeComposer();
+        if (c === 'save') saveComposer();
+        else if (c === 'cancel') closeComposer();
+        else if (c === 'suggest') {
+          // GitHub turns a suggestion block into a change the author can commit: it replaces the commented lines.
+          const at = area.selectionStart;
+          const before = at > 0 && area.value[at - 1] !== '\n' ? '\n' : '';
+          area.setRangeText(`${before}\`\`\`suggestion\n${code}\n\`\`\`\n`, at, area.selectionEnd, 'end');
+          area.focus();
+          t.body = area.value;
+          fit();
+        }
       });
       setTimeout(() => area.focus({ preventScroll: true }), 0);
       return stickAfterGutter(view, box);
@@ -982,24 +1144,39 @@
     ignoreEvent() { return true; }
   }
 
-  // Draft comments of this file and side, and the open composer, shown under their line.
-  // Block widgets must come from a state field; refreshComments rebuilds it after a draft changes.
-  function commentField(path, side, start) {
+  // Draft comments of this file and side, the open composer, and the picked lines. Block widgets must come from a
+  // state field; refreshComments rebuilds it after a draft, the composer, or the drag changes.
+  const pickedLine = CM.Decoration.line({ class: 'cm-gr-sel' });
+  function commentField(ctx) {
+    const { path, side, start } = ctx;
     const build = st => {
       const doc = st.doc;
-      const items = drafts
-        .filter(d => d.path === path && d.side === side && !(composing && composing.id === d.id))
-        .map(d => [d.line, 0, new CommentWidget(d)]);
-      if (composing && composing.path === path && composing.side === side) items.push([composing.line, 1, new ComposerWidget(composing)]);
-      const builder = new CM.RangeSetBuilder();
-      items.map(([line, order, widget]) => [line - start + 1, order, widget])
-        .filter(([n]) => n >= 1 && n <= doc.lines)
-        .sort((a, b) => a[0] - b[0] || a[1] - b[1])
-        .forEach(([n, , widget]) => {
-          const end = doc.line(n).to;
-          builder.add(end, end, CM.Decoration.widget({ widget, block: true, side: 1 }));
-        });
-      return builder.finish();
+      const ranges = [];
+      // A widget under file line `line` of this side, or after its deleted chunk for an old line in the unified view.
+      const place = (t, widget, order) => {
+        if (t.path !== path) return;
+        let pos = null;
+        if (t.side === side) {
+          const n = t.line - start + 1;
+          if (n >= 1 && n <= doc.lines) pos = doc.line(n).to;
+        } else if (ctx.original && t.side === 'LEFT') {
+          // Before the next line and after the deleted chunk, whose widget sits there with side -1.
+          pos = unifiedPosOfOld(st, ctx, t.line);
+          if (pos != null) ranges.push(CM.Decoration.widget({ widget, block: true, side: -0.6 + order / 10 }).range(pos));
+          return;
+        }
+        if (pos != null) ranges.push(CM.Decoration.widget({ widget, block: true, side: 1 + order }).range(pos));
+      };
+      drafts.filter(d => !(composing && composing.id === d.id)).forEach(d => place(d, new CommentWidget(d), 0));
+      if (composing) place(composing, new ComposerWidget(composing), 1);
+      const range = picked(path, side);
+      if (range) {
+        for (let line = range[0]; line <= range[1]; line++) {
+          const n = line - start + 1;
+          if (n >= 1 && n <= doc.lines) ranges.push(pickedLine.range(doc.line(n).from));
+        }
+      }
+      return CM.Decoration.set(ranges, true);
     };
     return CM.StateField.define({
       create: build,
@@ -1012,14 +1189,21 @@
     for (const view of liveViews()) view.dispatch({ effects: refreshComments.of(null) });
   }
 
-  // target: {path, side, line} for a new comment, or a copy of a draft to edit.
-  function openComposer(target) {
-    if (!commentable.get(target.path)?.[target.side].has(target.line)) return toast(S.outsideDiff);
-    if (composing && !composing.id && composing.body?.trim() && !(target.path === composing.path && target.line === composing.line)) {
-      return document.querySelector('.cm-gr-composer textarea')?.focus();
+  // target: {path, side, line, start?} for a new comment, or a copy of a draft to edit. keep: the target extends the
+  // open composer, whose text it carries.
+  function openComposer(target, keep = false) {
+    if (!(target.start < target.line)) delete target.start;
+    if (!inDiff(target.path, target.side, target.line) || !sameHunk(target.path, target.side, firstLine(target), target.line)) {
+      toast(S.outsideDiff);
+      return false;
+    }
+    if (!keep && composing && !composing.id && composing.body?.trim()) {
+      document.querySelector('.cm-gr-composer textarea')?.focus();
+      return false;
     }
     composing = target;
     refreshAllComments();
+    return true;
   }
   function closeComposer() {
     if (!composing) return;
@@ -1031,9 +1215,12 @@
     const text = (t.body || '').trim();
     composing = null;
     if (text) {
+      const lines = { path: t.path, side: t.side, line: t.line, ...(t.start ? { start: t.start } : {}) };
       const existing = t.id && drafts.find(d => d.id === t.id);
-      if (existing) existing.body = text;
-      else drafts.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, path: t.path, side: t.side, line: t.line, body: text });
+      if (existing) {
+        delete existing.start;
+        Object.assign(existing, lines, { body: text });
+      } else drafts.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...lines, body: text });
       saveDrafts();
       renderHeader();
     }
@@ -1118,7 +1305,7 @@
       state: CM.EditorState.create({
         doc: after,
         extensions: [
-          extensions(path, { start: startNew, marks, side: 'RIGHT', highlights }),
+          extensions(path, { start: startNew, marks, side: 'RIGHT', highlights, original: { text: before, start: startOld } }),
           CM.unifiedMergeView({ original: before, mergeControls: false, highlightChanges: true, gutter: true, collapseUnchanged }),
           wordHighlights,
         ],
@@ -1374,11 +1561,12 @@
 
   // ------------------------------------------------------------- review submission
 
+  // The lines GitHub accepts a comment on, per file and side, each mapped to its hunk: a range stays in one hunk.
   const commentable = new Map(files.map(f => {
-    const sides = { LEFT: new Set(), RIGHT: new Set() };
-    f.hunks.forEach(h => h.lines.forEach(([, o, n]) => {
-      if (o != null) sides.LEFT.add(o);
-      if (n != null) sides.RIGHT.add(n);
+    const sides = { LEFT: new Map(), RIGHT: new Map() };
+    f.hunks.forEach((h, i) => h.lines.forEach(([, o, n]) => {
+      if (o != null) sides.LEFT.set(o, i);
+      if (n != null) sides.RIGHT.set(n, i);
     }));
     return [f.path, sides];
   }));
@@ -1399,8 +1587,8 @@
     ].filter(Boolean);
     const list = drafts.length
       ? `<ul class="draft-list">${drafts.map(d => `<li>
-          <button class="draft-loc" data-act="ref" data-path="${esc(d.path)}" data-start="${d.line}" data-end="${d.line}" title="${esc(d.path)}:${d.line}">${esc(basename(d.path))}:${d.line}${d.side === 'LEFT' ? ` <span class="muted">(${esc(S.oldSide)})</span>` : ''}</button>
-          <span class="draft-text">${esc(d.body)}</span>
+          <button class="draft-loc" data-act="ref" data-path="${esc(d.path)}" data-start="${firstLine(d)}" data-end="${d.line}" title="${esc(d.path)}:${linesLabel(d)}"><span class="loc-name">${esc(basename(d.path))}</span><span>:${linesLabel(d)}${d.side === 'LEFT' ? ` <span class="muted">(${esc(S.oldSide)})</span>` : ''}</span></button>
+          <span class="draft-text">${esc(d.body.replace(/```suggestion\n[\s\S]*?```/g, `[${S.suggest}]`))}</span>
           <button class="ib xs" data-act="delete-draft" data-id="${esc(d.id)}" title="${esc(S.remove)}" aria-label="${esc(S.remove)}">${icon('trash')}</button></li>`).join('')}</ul>`
       : `<p class="empty-note">${esc(S.noComments)}</p>`;
     const events = Object.keys(S.events).map((key, i) => `<label class="ev ev-${key.toLowerCase().replace('_', '-')}">
@@ -1450,7 +1638,10 @@
         const res = await fetch('api/review', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event, body, comments: drafts.map(({ path, line, side, body: text }) => ({ path, line, side, body: text })) }),
+          body: JSON.stringify({
+            event, body,
+            comments: drafts.map(d => ({ path: d.path, line: d.line, side: d.side, body: d.body, ...(d.start ? { start_line: d.start } : {}) })),
+          }),
         });
         const out = await res.json();
         if (!res.ok) throw new Error(`${S.failed} ${out.error}`);

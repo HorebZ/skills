@@ -591,15 +591,15 @@ function build(folder, { open }) {
 
 // ---------------------------------------------------------------- serve
 
-// Line numbers GitHub accepts a review comment on: every line of a diff hunk, per side.
+// Line numbers GitHub accepts a review comment on: every line of a diff hunk, per side, mapped to its hunk.
 function commentableLines(files) {
   const lines = new Map();
   for (const f of files) {
-    const left = new Set();
-    const right = new Set();
-    f.hunks.forEach(h => h.lines.forEach(([, o, n]) => {
-      if (o != null) left.add(o);
-      if (n != null) right.add(n);
+    const left = new Map();
+    const right = new Map();
+    f.hunks.forEach((h, i) => h.lines.forEach(([, o, n]) => {
+      if (o != null) left.set(o, i);
+      if (n != null) right.set(n, i);
     }));
     lines.set(f.path, { LEFT: left, RIGHT: right });
   }
@@ -619,6 +619,11 @@ function checkReview(input, commentable) {
       return 'invalid line comment';
     }
     if (!sides[c.side].has(c.line)) return `${c.path}:${c.line} is outside the diff`;
+    // A comment on several lines starts at start_line, on the same side and in the same hunk as its last line.
+    if (c.start_line != null) {
+      if (!Number.isInteger(c.start_line) || c.start_line >= c.line) return 'invalid line comment';
+      if (sides[c.side].get(c.start_line) !== sides[c.side].get(c.line)) return `${c.path}:${c.start_line}-${c.line} spans several hunks`;
+    }
   }
   return null;
 }
@@ -678,7 +683,11 @@ function serve(folder, { port, open }) {
     if (!pr || !slug) return [409, { error: 'not a GitHub pull request' }];
     const problem = checkReview(input, commentable);
     if (problem) return [400, { error: problem }];
-    const review = { commit_id: data.head.sha, event: input.event, comments: input.comments.map(c => ({ path: c.path, line: c.line, side: c.side, body: c.body })) };
+    const comments = input.comments.map(c => ({
+      path: c.path, line: c.line, side: c.side, body: c.body,
+      ...(c.start_line != null ? { start_line: c.start_line, start_side: c.side } : {}),
+    }));
+    const review = { commit_id: data.head.sha, event: input.event, comments };
     if (input.body.trim()) review.body = input.body;
     const result = gh(['api', '-X', 'POST', `repos/${slug}/pulls/${pr.number}/reviews`, '--input', '-'], JSON.stringify(review));
     if (!result) return [500, { error: 'gh is not installed' }];

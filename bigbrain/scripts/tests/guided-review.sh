@@ -173,9 +173,11 @@ curl -s "${url}api/status" | grep -q '"viewer":"bob"' || fail "status does not r
 post() { curl -s -w '\n%{http_code}' -H 'Content-Type: application/json' -H "Origin: $1" -d "$2" "${url}api/review"; }
 post "http://evil.example" '{"event":"COMMENT","body":"x","comments":[]}' | tail -1 | grep -q 403 || fail "foreign Origin accepted"
 post "$origin" '{"event":"APPROVE","comments":[{"path":"src/numbers.txt","line":25,"side":"RIGHT","body":"x"}]}' | grep -q "outside the diff" || fail "comment outside the diff accepted"
+post "$origin" '{"event":"COMMENT","comments":[{"path":"src/numbers.txt","start_line":5,"line":50,"side":"RIGHT","body":"x"}]}' | grep -q "spans several hunks" || fail "range across hunks accepted"
+post "$origin" '{"event":"COMMENT","comments":[{"path":"src/total.js","start_line":3,"line":3,"side":"RIGHT","body":"x"}]}' | grep -q "invalid line comment" || fail "empty range accepted"
 post "$origin" '{"event":"REQUEST_CHANGES","body":"","comments":[]}' | tail -1 | grep -q 400 || fail "request changes without a comment accepted"
 [ ! -f "$FAKE_POSTED" ] || fail "an invalid review reached gh"
-reply=$(post "$origin" '{"event":"REQUEST_CHANGES","body":"Round it","comments":[{"path":"src/total.js","line":3,"side":"RIGHT","body":"Rounding?"},{"path":"legacy.txt","line":1,"side":"LEFT","body":"Still used?"}]}')
+reply=$(post "$origin" '{"event":"REQUEST_CHANGES","body":"Round it","comments":[{"path":"src/total.js","start_line":2,"line":3,"side":"RIGHT","body":"Rounding?"},{"path":"legacy.txt","line":1,"side":"LEFT","body":"Still used?"}]}')
 echo "$reply" | tail -1 | grep -q 200 || fail "valid review rejected: $reply"
 echo "$reply" | grep -q 'pullrequestreview-1' || fail "review URL not returned"
 check '
@@ -183,6 +185,8 @@ const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const ok = (c, m) => { if (!c) { console.error(m, r); process.exit(1); } };
 ok(r.event === "REQUEST_CHANGES" && r.body === "Round it" && r.commit_id === process.env.FAKE_HEAD, "review fields");
 ok(r.comments.length === 2 && r.comments[1].side === "LEFT" && r.comments[1].path === "legacy.txt", "line comments");
+ok(r.comments[0].start_line === 2 && r.comments[0].start_side === "RIGHT" && r.comments[0].line === 3, "range comment");
+ok(!("start_line" in r.comments[1]), "a one-line comment has no start_line");
 ' "$FAKE_POSTED" "posted review"
 
 echo "PASS: collect, build and serve"

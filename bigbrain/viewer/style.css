@@ -26,6 +26,7 @@
   --amber-text: #a15c07;
   --purple: #8250df;
   --add-line: #ecfaf0;
+  --sel-line: rgba(47, 111, 235, 0.14);
   --add-word: #c3eecd;
   --add-num: #dcf5e3;
   --del-line: #fdf0f0;
@@ -62,7 +63,7 @@
     --red: #da3633; --red-text: #f47067; --red-soft: rgba(248, 81, 73, 0.11);
     --amber: #d29922; --amber-text: #d9a43c;
     --purple: #a371f7;
-    --add-line: rgba(46, 160, 67, 0.11); --add-word: rgba(46, 160, 67, 0.3); --add-num: rgba(46, 160, 67, 0.16);
+    --sel-line: rgba(76, 141, 255, 0.2); --add-line: rgba(46, 160, 67, 0.11); --add-word: rgba(46, 160, 67, 0.3); --add-num: rgba(46, 160, 67, 0.16);
     --del-line: rgba(248, 81, 73, 0.09); --del-word: rgba(248, 81, 73, 0.28); --del-num: rgba(248, 81, 73, 0.14);
     --hunk-bg: #18181b; --hunk-fg: #8a8a93;
     --focus-line: rgba(76, 141, 255, 0.1);
@@ -84,7 +85,7 @@
   --red: #da3633; --red-text: #f47067; --red-soft: rgba(248, 81, 73, 0.11);
   --amber: #d29922; --amber-text: #d9a43c;
   --purple: #a371f7;
-  --add-line: rgba(46, 160, 67, 0.11); --add-word: rgba(46, 160, 67, 0.3); --add-num: rgba(46, 160, 67, 0.16);
+  --sel-line: rgba(76, 141, 255, 0.2); --add-line: rgba(46, 160, 67, 0.11); --add-word: rgba(46, 160, 67, 0.3); --add-num: rgba(46, 160, 67, 0.16);
   --del-line: rgba(248, 81, 73, 0.09); --del-word: rgba(248, 81, 73, 0.28); --del-num: rgba(248, 81, 73, 0.14);
   --hunk-bg: #18181b; --hunk-fg: #8a8a93;
   --focus-line: rgba(76, 141, 255, 0.1);
@@ -529,14 +530,17 @@ details.fold .md { padding: 4px 14px 14px; font-size: 13px; border-top: 1px soli
 .card .cm-gr-focus { background-color: var(--focus-line); box-shadow: inset 2px 0 0 var(--accent); }
 .card .cm-gr-added.cm-gr-focus { background-color: var(--add-line); }
 
-/* Commenting: a + on the line numbers of diff lines */
-.card .cm-gr-commentable .cm-lineNumbers .cm-gutterElement.cm-gr-can { position: relative; cursor: pointer; }
-.card .cm-gr-commentable .cm-lineNumbers .cm-gutterElement.cm-gr-can:hover { color: transparent; }
-.card .cm-gr-commentable .cm-lineNumbers .cm-gutterElement.cm-gr-can:hover::after {
-  content: "+"; position: absolute; top: 1px; right: 8px; width: 18px; height: 18px; border-radius: 5px;
-  display: grid; place-items: center; background: var(--accent); color: #fff;
-  font: 600 14px/1 var(--sans); box-shadow: var(--shadow-sm);
+/* Commenting: as on GitHub, a + over the line number of the hovered diff line, and the picked lines tinted */
+.card .cm-gr-add {
+  position: absolute; z-index: 300; width: 20px; height: 20px; padding: 0; transform: translate(-70%, -50%);
+  display: grid; place-items: center; border: 0; border-radius: 6px; background: var(--accent); color: #fff;
+  box-shadow: var(--shadow-sm); cursor: pointer; transition: transform 0.1s;
 }
+.card .cm-gr-add[hidden] { display: none; }
+.card .cm-gr-add:hover { transform: translate(-70%, -50%) scale(1.12); }
+.card .cm-gr-add .i { width: 13px; height: 13px; stroke-width: 2.6; }
+.card .cm-editor .cm-line.cm-gr-sel, .card .cm-editor .cm-deletedLine.cm-gr-sel { background-image: linear-gradient(var(--sel-line), var(--sel-line)); }
+.card .cm-gr-commentable .cm-deletedLine { cursor: default; }
 
 .card .cm-gr-hl { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--amber) 75%, transparent); transition: background-color 0.12s; }
 .card .cm-gr-hl.on { background-color: color-mix(in srgb, var(--amber) 12%, transparent); }
@@ -568,7 +572,7 @@ details.fold .md { padding: 4px 14px 14px; font-size: 13px; border-top: 1px soli
 }
 .card .cm-mergeView .cm-gr-comment, .card .cm-mergeView .cm-gr-composer { max-width: min(560px, calc(var(--pane-w, 100vw) / 2 - 100px)); }
 .card .cm-gr-composer { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.cmt-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; color: var(--fg-2); font-size: 12px; }
+.cmt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; margin-bottom: 6px; color: var(--fg-2); font-size: 12px; }
 .cmt-head .i { width: 14px; height: 14px; color: var(--accent-text); }
 .cmt-head b { color: var(--fg); font-weight: 600; }
 .avatar {
@@ -576,7 +580,7 @@ details.fold .md { padding: 4px 14px 14px; font-size: 13px; border-top: 1px soli
   background: var(--primary); color: var(--primary-fg); font-size: 10px; font-weight: 700;
 }
 .pill {
-  height: 18px; padding: 0 7px; border-radius: 9px; display: inline-flex; align-items: center;
+  height: 18px; padding: 0 7px; white-space: nowrap; border-radius: 9px; display: inline-flex; align-items: center;
   border: 1px solid var(--border-strong); color: var(--fg-2); background: var(--bg-sub); font-size: 11px; font-weight: 500;
 }
 .cm-gr-comment .md { font-size: 13px; line-height: 1.55; }
@@ -588,6 +592,15 @@ details.fold .md { padding: 4px 14px 14px; font-size: 13px; border-top: 1px soli
 }
 .cm-gr-composer textarea:focus, dialog.review-pop textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .cmt-acts { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.cmt-lines { color: var(--fg-3); font-size: 11.5px; white-space: nowrap; }
+.btn.ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--fg-2); }
+.btn.ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
+.md .suggestion { margin: 4px 0 8px; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.md .suggestion .sugg-head { padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--bg-sub); color: var(--fg-2); font-size: 11.5px; font-weight: 600; }
+.md .suggestion pre { margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: var(--bg); font: 12px/1.6 var(--mono); overflow-x: auto; }
+.md .suggestion pre div { padding: 0 10px; white-space: pre; }
+.md .suggestion .del { background: var(--del-line); }
+.md .suggestion .add { background: var(--add-line); }
 .hint { display: inline-flex; align-items: center; gap: 2px; color: var(--fg-3); font-size: 11.5px; }
 
 /* ---------------------------------------------------------------- overview (right) */
@@ -699,7 +712,8 @@ dialog.review-pop form { padding: 14px 16px 14px; display: flex; flex-direction:
 .pending-head .count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center; background: var(--bg-active); font-size: 11px; }
 .draft-list { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; }
 .draft-list li { display: flex; gap: 10px; align-items: center; padding: 5px 6px 5px 12px; border-top: 1px solid var(--border); font-size: 12.5px; }
-.draft-loc { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--accent-text); }
+.draft-loc { flex: none; display: inline-flex; max-width: 50%; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--accent-text); }
+.draft-loc .loc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .draft-loc:hover { text-decoration: underline; }
 .draft-text { flex: 1; min-width: 0; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-note { margin: 0; padding: 9px 12px; color: var(--fg-3); font-size: 12px; border-top: 1px solid var(--border); }
