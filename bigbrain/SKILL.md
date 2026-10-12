@@ -1,6 +1,6 @@
 ---
 name: bigbrain
-description: Rigorous, delegation-first engineering workflow. Use for /bigbrain followed by a feature, bugfix, refactor, chore, plan, how/why code explanation, PR review or critique, idea to grill, setup, watch-pr, or resume. Accepts free text, a GitHub issue, or a Notion page.
+description: Rigorous, delegation-first engineering workflow. Use for /bigbrain followed by a feature, bugfix, refactor, chore, plan, how/why code explanation, guided PR review for a human or critique, idea to grill, setup, watch-pr, or resume. Accepts free text, a GitHub issue, or a Notion page.
 disable-model-invocation: true
 ---
 
@@ -26,7 +26,7 @@ You are the lead: you decide, synthesize, and verify. Use cases own phase order 
 | Setup, configure models | `usecases/setup.md` |
 | How code works or where something belongs | `bricks/how.md`, then present |
 | Why something exists or whether its reason still holds | `bricks/why.md`, then present |
-| Review a PR, branch, or diff for a human | `usecases/review.md` |
+| Guided review: prepare a PR, branch, or diff for a human to review | `usecases/guided-review.md` |
 | Critique a change yourself | `bricks/interrogate.md`, then present |
 | Grill or challenge an idea | `bricks/grill.md`, then recap and stop |
 | Watch an existing PR | `bricks/pr-watch.md` |

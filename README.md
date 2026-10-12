@@ -167,7 +167,7 @@ flowchart LR
 
 ### Guided reviews
 
-The [review use case](bigbrain/usecases/review.md) prepares a pull request, branch, or diff for you to review, then opens it as a page in your browser. You do the review; the agent explains and points at doubts, and never posts anything itself.
+The [guided review use case](bigbrain/usecases/guided-review.md) prepares a pull request, branch, or diff for you to review, then opens it as a page in your browser. You do the review; the agent explains and points at doubts, and never posts anything itself.
 
 ```mermaid
 flowchart LR

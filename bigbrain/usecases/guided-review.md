@@ -1,4 +1,4 @@
-# Use case: review
+# Use case: guided review
 
 **The human reviews; you make it easy.** Turn a PR, branch, or diff into a guided page in their browser: what the change does, how its parts fit, and where to look hard. Subagents read the code and check your tour; you write it. You never approve, request changes, or post to GitHub: the page lets the reviewer submit their own review. To find defects yourself instead, the user asks for a critique (`bricks/interrogate.md`).
 
