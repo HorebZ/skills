@@ -5,11 +5,11 @@
 Commands below run `node scripts/guided-review.mjs`, which needs Node 18+, `git`, and `gh` for PRs.
 
 1. **Collect.** Run `collect [TARGET] [--base REF]`. TARGET is a PR number or URL, a branch, or `base..head`; by default, the current branch against its base. It prints a review folder outside the repo, where reports and the tour also go. Read its `overview.md`: description, commits, changed files with numbered hunks, recent history, and where to read the code at the PR head. Create the worktree it names when the checkout is not at head.
-2. **Intent.** From the description, linked issues (`gh issue view`), and commits, write one paragraph: what the change is for, and each claim of the description the code must show. With no description, take the intent from the commits and say so in the summary.
+2. **Intent.** From the description, linked issues (`gh issue view`), and commits, write one paragraph: the problem the change solves, in the product's terms, what the change is for, and each claim of the description the code must show. With no description, take the intent from the commits and say so in the summary.
 3. **Understand the change in its module.** Three read-only subagents, launched together, each briefed per `references/subagent-brief.md` with the intent, the review folder, the code at head, and a report path in the review folder:
    - **Module:** an `explorer (report)` with `references/prompts/explorer.md`, angle "the modules this PR touches, read whole at head": entry points, the runtime path through the changed code and the step each change sits on, key types, tests.
    - **History:** an `explorer (report)` with `references/prompts/investigator.md`. Question: what shaped each region the PR changes or deletes (commits, PRs, reverts, fixed bugs), and does the PR keep the reasons that still hold?
-   - **Risk:** a `reviewer` with `references/prompts/reviewer.md`, angles A and C, at the head commit: failure scenarios, callers outside the diff, behavior no test covers, and description claims the code does not show.
+   - **Risk:** a `reviewer` with `references/prompts/reviewer.md`, angles A, B, and C, at the head commit: failure scenarios, callers outside the diff, logic the PR duplicates or layers it may not need, behavior no test covers, and description claims the code does not show.
 
    For a small PR (one module, under about 300 changed lines outside tests and generated files), read the module and its history yourself with targeted reads and launch only the risk reviewer. Past about 1,500 lines or across unrelated areas, give each area its own module explorer.
 4. **Map, split, and order** (below), from the digests. Before turning a finding into a check, confirm it with one targeted read.

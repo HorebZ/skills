@@ -19,8 +19,10 @@ const VIEWER = join(dirname(fileURLToPath(import.meta.url)), '..', 'viewer');
 const MAX_BYTES = 1_000_000; // larger files are listed, but their content is not embedded
 const LARGE_DIFF = 3000; // the viewer asks before rendering a file diff longer than this many lines
 const SUMMARY_LINES = 10;
-const SUMMARY_WORDS = 130;
+const SUMMARY_WORDS = 160;
 const LONG_STEP_WORDS = 90;
+const MAX_BODY_CODE = 3; // distinct code names in a step body before it reads as a list of identifiers
+const LONG_LINE = 160; // a changed line this long gets its word diff read, not just its line diff
 const MAX_CHECKS = 2;
 const MAX_PANELS = 3;
 const MAX_HIGHLIGHTS = 3;
@@ -282,7 +284,8 @@ function overview(data, history, codeAt) {
       const [first, last] = hunkSpan(h, side);
       const changed = h.lines.find(l => l[0] !== ' ' && l[3].trim())?.[3].trim() ?? '';
       const context = h.header ? ` in \`${h.header}\`` : '';
-      out.push(`- hunk ${i}: lines ${first}-${last}${context}: \`${changed.slice(0, 90)}\``);
+      const long = h.lines.some(l => l[0] !== ' ' && l[3].length > LONG_LINE) ? ' [long line: read it in diff.words.patch]' : '';
+      out.push(`- hunk ${i}: lines ${first}-${last}${context}: \`${changed.slice(0, 90)}\`${long}`);
     });
   }
   if (history.trim()) out.push('', '## Recent history of the touched paths (before this change)', '', '```', history.trimEnd(), '```');
@@ -326,6 +329,8 @@ function collect(target, opts) {
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, 'data.json'), JSON.stringify(data));
   writeFileSync(join(folder, 'diff.patch'), git(repo, 'diff', '--no-color', '--no-ext-diff', '-M', mergeBase, headSha));
+  // A long line's line diff shows it removed and re-added whole; the word diff shows what changed inside it.
+  writeFileSync(join(folder, 'diff.words.patch'), git(repo, 'diff', '--no-color', '--no-ext-diff', '-M', '--word-diff=plain', mergeBase, headSha));
   // Reading the whole module needs the code at the PR head: the checkout itself when it is there and clean.
   const clean = gitOk(repo, 'diff', '--quiet', 'HEAD') && !git(repo, 'status', '--porcelain').trim();
   const codeAt = rev(repo, 'HEAD') === headSha && clean
@@ -401,6 +406,8 @@ function validate(tour, data) {
     const lines = tour.summary.split('\n').filter(l => l.trim()).length;
     if (lines > SUMMARY_LINES) errors.push(`summary: ${lines} lines; keep it to ${SUMMARY_LINES} at most`);
     if (wordCount(tour.summary) > SUMMARY_WORDS) warnings.push(`summary: over ${SUMMARY_WORDS} words; shorten the sentences`);
+    const opening = tour.summary.trim().split(/\n\s*\n/)[0];
+    if (/`|\[\[/.test(opening)) warnings.push('summary: the opening names code; say the problem and the change in the product\'s words, and keep code names for the next paragraph');
   }
   for (const [key, hint] of Object.entries(REMOVED)) if (key in tour) errors.push(`${key}: no longer part of the tour; ${hint}`);
   const flow = tour.flow ?? [];
@@ -444,6 +451,10 @@ function validate(tour, data) {
     if (Array.isArray(flow) && flow.length && !flow.some(node => node?.step === step.id)) warnings.push(`${where}: appears nowhere in flow`);
     if (wordCount(step.body) > LONG_STEP_WORDS) {
       warnings.push(`${where}: body is over ${LONG_STEP_WORDS} words; cut it, split the step, or move detail to panel notes`);
+    }
+    const names = new Set([...String(step.body ?? '').matchAll(/`([^`\n]+)`/g)].map(m => m[1]));
+    if (names.size > MAX_BODY_CODE) {
+      warnings.push(`${where}: body names ${names.size} pieces of code; keep the ${MAX_BODY_CODE} the reader needs, say the rest in words or move it to highlights`);
     }
     if (!RISKS.includes(step.risk)) errors.push(`${where}: risk must be ${RISKS.join(', ')}`);
     const checks = step.checks ?? [];
@@ -513,6 +524,8 @@ function validate(tour, data) {
   for (const [where, text, judged] of texts) {
     const words = judged ? [...new Set([...String(text).matchAll(REASSURING)].map(m => m[0].toLowerCase()))] : [];
     if (words.length) warnings.push(`${where}: "${words.join('", "')}" judges the code for the reviewer; describe what it does instead`);
+    const cut = [...String(text).matchAll(/`([^`\n]*(?:…|\.\.\.))`/g)].map(m => m[1]);
+    if (cut.length) warnings.push(`${where}: \`${cut[0]}\` cuts a name short; write it whole or describe it in words`);
     for (const match of String(text).matchAll(BADGE)) {
       const target = match[1].trim();
       if (target.startsWith('step:')) {

@@ -45,13 +45,13 @@ printf 'export function total(items, tax = 0) {\n  const sum = items.reduce((a, 
 sed -i.bak -e 's/^5$/five/' -e 's/^50$/fifty/' src/numbers.txt && rm src/numbers.txt.bak
 git rm -q legacy.txt
 git mv src/old-name.txt src/new-name.txt
-printf 'export const TAX = 0.2; // </script> and $& must not break the page\n' > src/tax.js
+printf 'export const TAX = 0.2; // </script> and $& must not break the page, and this comment runs long enough to count as a long line in overview.md and send the reader to the word diff\n' > src/tax.js
 printf '\000\001\002' > logo.bin
 git add -A
 git commit -qm "add tax to total"
 
 out=$(node "$script" collect --base main | tail -1)
-for f in data.json overview.md diff.patch; do [ -f "$out/$f" ] || fail "collect did not write $f"; done
+for f in data.json overview.md diff.patch diff.words.patch; do [ -f "$out/$f" ] || fail "collect did not write $f"; done
 check '
 const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const f = Object.fromEntries(d.files.map(x => [x.path, x]));
@@ -69,6 +69,8 @@ ok(d.commits.map(c => c.subject).join() === "add tax to total" && d.title === "a
 ok(d.pr === null && d.head.ref === "feature", "branch target");
 ' "$out/data.json" "collected data is wrong"
 grep -q "hunk 1: lines" "$out/overview.md" || fail "overview lists hunks"
+grep -q "long line: read it in diff.words.patch" "$out/overview.md" || fail "overview flags long changed lines"
+grep -qF '[-return-]' "$out/diff.words.patch" || fail "word diff marks removed words"
 range=$(node "$script" collect main..feature | tail -1)
 check 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1] + "/data.json", "utf8")).files.length === 6 ? 0 : 1)' "$range" "range target"
 
@@ -76,7 +78,7 @@ write_tour() {
   cat > "$out/tour.json" <<JSON
 {
   "lang": "fr",
-  "summary": "Ajoute une taxe au total. Voir [[src/total.js:1-4]] et [[src/helper.js|le helper]].",
+  "summary": "Ajoute une taxe au total.\\n\\nVoir [[src/total.js:1-4]] et [[src/helper.js|le helper]].",
   "flow": [{ "label": "Le total", "step": "total" }, { "label": "Le reste", "step": "rest" }],
   "steps": [
     { "id": "total", "title": "Le total", "risk": "high",
@@ -131,7 +133,7 @@ expect_error "evidence: no longer part of the tour"
 write_tour "$skip" && sed -i.bak 's/"Pas de test."/{ "kind": "gap", "text": "Pas de test." }/' "$out/tour.json"
 expect_error "check 2: must be a non-empty sentence"
 write_tour "$skip" && sed -i.bak 's/"summary": "Ajoute/"summary": "1\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10\\nAjoute/' "$out/tour.json"
-expect_error "summary: 11 lines"
+expect_error "summary: 12 lines"
 write_tour "$skip" && sed -i.bak 's/"Pas de test."/"Pas de test.", "Et la doc ?"/' "$out/tour.json"
 expect_error "3 checks; keep the 2"
 write_tour "$skip" && sed -i.bak 's/"step": "rest"/"step": "nope"/' "$out/tour.json"
@@ -143,6 +145,11 @@ node "$script" build "$out" 2> "$work/err" >/dev/null || fail "warnings must not
 grep -q "no link; say in one sentence" "$work/err" || fail "missing link not warned"
 grep -q "show\[1\]: no note" "$work/err" || fail "missing note not warned"
 grep -q '"simplement" judges the code' "$work/err" || fail "reassuring word not warned"
+write_tour "$skip" && sed -i.bak -e 's/"body": "Fichiers annexes."/"body": "Lit `a`, `b`, `c` et `resolveTo…`."/' -e 's/"summary": "Ajoute une taxe/"summary": "Ajoute `tax`/' "$out/tour.json"
+node "$script" build "$out" 2> "$work/err" >/dev/null || fail "warnings must not fail the build: $(cat "$work/err")"
+grep -q "summary: the opening names code" "$work/err" || fail "code in the summary opening not warned"
+grep -q "body names 4 pieces of code" "$work/err" || fail "too many code names not warned"
+grep -q "cuts a name short" "$work/err" || fail "truncated name not warned"
 write_tour "$skip" && sed -i.bak 's/step:rest/step:nope/' "$out/tour.json"
 expect_error "names no step id"
 write_tour "$skip" && sed -i.bak 's#src/helper.js|#src/missing.js|#' "$out/tour.json"

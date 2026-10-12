@@ -7,7 +7,7 @@ The tour is the only file you write; `build` checks it against what `collect` pr
 ```json
 {
   "lang": "fr",
-  "summary": "**Chaque facture reçoit désormais une date d'échéance fixée à sa création.**\n\nJusqu'ici, l'échéance était recalculée à chaque affichage. Elle est maintenant calculée une fois, puis enregistrée avec la facture.\n\n- La date est calculée à partir des conditions de paiement du client.\n- La numérotation lit ce champ au lieu de refaire le calcul.\n\nLes tests de `invoice.ts` couvrent le calcul, mais aucune migration ne remplit les factures existantes.",
+  "summary": "**Les clients voyaient parfois une échéance différente sur la facture et sur le relevé, quand leurs conditions de paiement avaient changé entre-temps. Désormais, chaque facture garde l'échéance fixée à sa création.**\n\nJusqu'ici, l'échéance était recalculée à chaque affichage. Elle est maintenant calculée une fois, puis enregistrée avec la facture.\n\n- La date est calculée à partir des conditions de paiement du client.\n- La numérotation lit ce champ au lieu de refaire le calcul.\n\nLes tests de `invoice.ts` couvrent le calcul, mais aucune migration ne remplit les factures existantes.",
   "flow": [
     { "label": "La création d'une facture (`createInvoice`)", "step": "due" },
     { "label": "Le calcul de l'échéance (`computeDueDate`)", "step": "due" },
@@ -48,7 +48,7 @@ The tour is the only file you write; `build` checks it against what `collect` pr
 | Field | Rule |
 |---|---|
 | `lang` | Language code of the text (`fr`, `en`); sets the interface language. |
-| `summary` | Required. What the PR does, in 10 non-empty lines at most (an error past that), about 130 words at most, shaped per `references/tour-writing.md`. |
+| `summary` | Required. Why the PR exists and what it does, in 10 non-empty lines at most (an error past that), about 160 words at most, shaped per `references/tour-writing.md`. |
 | `flow` | The 3 to 7 places the change runs through, in execution order, each `{ "label", "step" }`; leave `step` out for a place shown only for context. Shown on the intro as a map and on each step as a "you are here" line. |
 | `steps[].id` | Short slug, unique. Used by `flow`, `[[step:id]]`. Defaults to `step-N`. |
 | `steps[].title` | Required. What happens, not a file name ("Changes to X"). |
@@ -63,7 +63,7 @@ Fields of an earlier format (`context`, `scenario`, `evidence`, `glossary`, `ord
 
 ## Checks run by `build`
 
-`build` turns each rule of the table above into an error or a warning, and also checks that every hunk of every changed file is shown in a step or listed in `skipped`, that badges, `flow` steps and line ranges point somewhere, and flags reassuring words such as "simply" or "correctly" outside `checks`.
+`build` turns each rule of the table above into an error or a warning, and also checks that every hunk of every changed file is shown in a step or listed in `skipped`, that badges, `flow` steps and line ranges point somewhere, and flags reassuring words such as "simply" or "correctly" outside `checks`, code named in the summary's opening, more than 3 code names in a step body, and a name cut short with "…".
 
 ## Code panels (`show`)
 

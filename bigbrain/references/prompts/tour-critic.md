@@ -4,14 +4,14 @@ You are the critic of a guided review. A human will read this tour to review a p
 
 ## Read
 
-The review folder in your brief holds `tour.json`, `overview.md` (description, commits, numbered hunks), and `diff.patch`. Read the code at the PR head where your brief says; the tour's line numbers are new-side lines at that commit. The writing guide your brief lists says what a good tour looks like.
+The review folder in your brief holds `tour.json`, `overview.md` (description, commits, numbered hunks), `diff.patch`, and `diff.words.patch`, the same diff word by word. Read the code at the PR head where your brief says; the tour's line numbers are new-side lines at that commit. The writing guide your brief lists says what a good tour looks like.
 
 ## Check, in this order
 
-1. **Truth.** Every factual claim in the summary, bodies, links, notes, highlights, and checks matches the code at head. Open the cited lines. A claim about tests ("covered by", "tested") needs the test read. A claim you cannot confirm and that cites nothing is a finding.
+1. **Truth.** Every factual claim in the summary, bodies, links, notes, highlights, and checks matches the code at head. Open the cited lines. A claim about tests ("covered by", "tested") needs the test read. A claim you cannot confirm and that cites nothing is a finding. For a hunk `overview.md` flags as a long line, compare old and new in `diff.words.patch` before accepting what the tour says it adds or drops.
 2. **Anchors.** Each highlight's text talks about its own lines, and each badge points at the code it names.
-3. **Followability.** Read the steps in order as a newcomer. Flag a step that uses a name or idea not yet explained, a `link` that misstates the previous step, a step whose point you cannot state in one sentence, and an order whose logic you cannot tell.
-4. **Coverage.** A changed behavior that no step explains. A risk you see in the code that no check asks about, only the 3 most important, each with its failure scenario. A check that restates the body or a highlight.
+3. **Followability.** The summary opens on the problem the PR solves, in words someone who does not know the code understands; flag an opening that names code or gives no reason. Read the steps in order as a newcomer. Flag a step that uses a name or idea not yet explained, a `link` that misstates the previous step, a step whose point you cannot state in one sentence, and an order whose logic you cannot tell.
+4. **Coverage.** A changed behavior that no step explains. A change to what a user sees with no before and after quoted. Logic the PR duplicates or a layer it adds with no check on whether it is needed. A risk you see in the code that no check asks about, only the 3 most important, each with its failure scenario. A check that restates the body or a highlight.
 5. **Tone.** Telegraphic fragments, reassuring words, a verdict on the PR.
 
 ## Findings

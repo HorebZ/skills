@@ -24,7 +24,7 @@
       large: n => `Large diff: ${n} lines.`, renderAnyway: 'Render it',
       explainedIn: 'Explained in', notExplained: 'Not explained in any step.', contextFile: 'Unchanged file, shown for context.',
       endTitle: 'You made it through the tour',
-      endText: n => `You went through the ${n} steps. Here are the points worth a look, then finish file by file in the files view.`,
+      endText: n => `You went through the ${n} steps. Here are the points worth a look. They come from an automated reading, which can be wrong or miss a problem: they guide your review, they do not replace it. Finish file by file in the files view.`,
       switchFiles: 'Files view', theme: 'Toggle theme', wrap: 'Wrap long lines', sidebar: 'Toggle sidebar', renamedFrom: 'from',
       noCode: 'This step shows no code.', prevFile: 'Previous file', nextFile: 'Next file',
       by: 'by',
@@ -74,7 +74,7 @@
       large: n => `Diff volumineux : ${n} lignes.`, renderAnyway: 'Afficher quand même',
       explainedIn: 'Expliqué dans', notExplained: 'Expliqué dans aucune étape.', contextFile: 'Fichier non modifié, affiché pour le contexte.',
       endTitle: 'Vous avez fait le tour',
-      endText: n => `Vous avez parcouru les ${n} étapes. Voici les points à regarder, puis terminez fichier par fichier dans la vue fichiers.`,
+      endText: n => `Vous avez parcouru les ${n} étapes. Voici les points à regarder. Ils viennent d'une lecture automatique, qui peut se tromper ou rater un problème : ils orientent votre relecture, ils ne la remplacent pas. Terminez fichier par fichier dans la vue fichiers.`,
       switchFiles: 'Vue fichiers', theme: 'Changer de thème', wrap: 'Retour à la ligne', sidebar: 'Afficher ou masquer le panneau', renamedFrom: 'depuis',
       noCode: "Cette étape n'affiche pas de code.", prevFile: 'Fichier précédent', nextFile: 'Fichier suivant',
       by: 'par',
@@ -880,7 +880,8 @@
 
   // side: the diff side these lines belong to ('LEFT' old, 'RIGHT' new), which makes them commentable.
   // original: in the unified view, the old text and its first file line, so deleted lines take comments too.
-  function extensions(path, { start = 1, marks = [], side = null, highlights = [], original = null } = {}) {
+  // wrap: wrap long lines even when the reader has not chosen to (see longChange).
+  function extensions(path, { start = 1, marks = [], side = null, highlights = [], original = null, wrap = false } = {}) {
     const ctx = remote.enabled && side && byPath.has(path) ? { path, side, start, original } : null;
     const gutter = { formatNumber: n => String(n + start - 1) };
     if (ctx) {
@@ -902,7 +903,7 @@
     ];
     const language = languageAt(path, start, side);
     if (language) ext.push(language);
-    if (prefs.wrap) ext.push(CM.EditorView.lineWrapping);
+    if (prefs.wrap ?? wrap) ext.push(CM.EditorView.lineWrapping);
     if (marks.length) ext.push(lineMarks(marks));
     if (highlights.length) ext.push(highlightField(highlights, start));
     if (ctx) {
@@ -1288,14 +1289,25 @@
     }
   }, { decorations: plugin => plugin.decorations });
 
+  // A changed line this long may hold its edit past the right edge of the panel, where nobody sees it. Until the
+  // reader picks a wrap setting, panels holding such a line wrap.
+  const LONG_LINE = 160;
+  function longChange(before, after) {
+    const a = new Set(before.split('\n'));
+    const b = new Set(after.split('\n'));
+    const long = (lines, other) => [...lines].some(l => l.length > LONG_LINE && !other.has(l));
+    return long(b, a) || long(a, b);
+  }
+
   // A unified or side-by-side diff, per the reader's preference. Returns the editor showing the head side.
   function diffEditor(parent, bag, path, before, after, { startOld = 1, startNew = 1, marks = [], collapse = false, highlights = [] }) {
     const collapseUnchanged = collapse ? { margin: 3, minSize: 6 } : undefined;
+    const wrap = longChange(before, after);
     if (prefs.split) {
       const merge = new CM.MergeView({
         parent, highlightChanges: true, gutter: true, collapseUnchanged,
-        a: { doc: before, extensions: [extensions(path, { start: startOld, side: 'LEFT' }), wordHighlights] },
-        b: { doc: after, extensions: [extensions(path, { start: startNew, marks, side: 'RIGHT', highlights }), wordHighlights] },
+        a: { doc: before, extensions: [extensions(path, { start: startOld, side: 'LEFT', wrap }), wordHighlights] },
+        b: { doc: after, extensions: [extensions(path, { start: startNew, marks, side: 'RIGHT', highlights, wrap }), wordHighlights] },
       });
       track(bag, merge);
       return merge.b;
@@ -1305,7 +1317,7 @@
       state: CM.EditorState.create({
         doc: after,
         extensions: [
-          extensions(path, { start: startNew, marks, side: 'RIGHT', highlights, original: { text: before, start: startOld } }),
+          extensions(path, { start: startNew, marks, side: 'RIGHT', highlights, original: { text: before, start: startOld }, wrap }),
           CM.unifiedMergeView({ original: before, mergeControls: false, highlightChanges: true, gutter: true, collapseUnchanged }),
           wordHighlights,
         ],
@@ -1465,18 +1477,19 @@
       const all = f.status === 'A' ? 'cm-gr-added' : 'cm-gr-deleted';
       const side = f.status === 'A' ? 'RIGHT' : 'LEFT';
       const lines = text.split('\n');
+      const wrap = lines.some(l => l.length > LONG_LINE);
       if (range && !showAll && !full) {
         // A range on a new or deleted file shows that excerpt, like a file view, not the whole file from line 1.
         const a = Math.max(1, range[0] - PAD);
         const b = Math.min(lines.length, range[1] + PAD);
         if (a > 1) body.append(moreBar(S.wholeFile(lines.length), onShowAll));
         const marks = marksFor({ start: a, length: b - a + 1, focus: range, all });
-        plainEditor(holder(body), bag, f.path, lines.slice(a - 1, b).join('\n'), { start: a, marks, side, highlights });
+        plainEditor(holder(body), bag, f.path, lines.slice(a - 1, b).join('\n'), { start: a, marks, side, highlights, wrap });
         if (b < lines.length) body.append(moreBar(S.wholeFile(lines.length), onShowAll));
         return;
       }
       const marks = marksFor({ length: lines.length, focus: range, all });
-      const editor = plainEditor(holder(body), bag, f.path, text, { marks, side, highlights });
+      const editor = plainEditor(holder(body), bag, f.path, text, { marks, side, highlights, wrap });
       if (range) reveal(editor, range[0]);
       return;
     }
